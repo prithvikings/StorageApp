@@ -1,104 +1,180 @@
-import { Link } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Directory, File, Paths } from "expo-file-system";
+import { fetch } from "expo/fetch";
+import { useState } from "react";
+import { Button, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { createTables } from "../../db/createTables";
+const Index = () => {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
 
-export default function Index() {
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState("");
+  const addLog = (message: string) => {
+    setLogs((prev) => [...prev, `${message}`]);
+  };
 
-  useEffect(() => {
-    async function initializeDatabase() {
-      try {
-        // Wait for the database table to be created.
-        await createTables();
-        setReady(true);
-      } catch (error) {
-        console.error("Database initialization failed:", error);
-        setError("Could not initialize the database.");
-      }
+  const createAndReadFile = async () => {
+    try {
+      const file = new File(Paths.document, "hello.txt");
+
+      file.create();
+      file.write("Suraj from this side");
+
+      const content = await file.text();
+
+      addLog(`File created & read: "${content}"`);
+    } catch (error) {
+      addLog(`❌ Error: ${error}`);
+    }
+  };
+
+  const readAsBase64 = async () => {
+    try {
+      const file = new File(Paths.document, "base64-test.txt");
+      file.create();
+      file.write("Convert me to base64");
+
+      const base64 = await file.base64();
+      addLog(`File created & read: "${base64.substring(0, 30)}"`);
+    } catch (error) {
+      addLog(`❌ Error: ${error}`);
+    }
+  };
+
+  const deleteFile = () => {
+    const file = new File(Paths.document, "delete-me.txt");
+    file.create();
+    file.write("Delete Me");
+
+    file.delete();
+  };
+
+  const copyFile = () => {
+    const original = new File(Paths.document, "original.txt");
+
+    if (!original.exists) {
+      original.create();
+      original.write("Original content");
     }
 
-    initializeDatabase();
-  }, []);
+    const copy = new File(Paths.cache, "cpoy.txt");
+    original.copy(copy);
+  };
 
-  // Show a loading screen while initializing SQLite.
-  if (!ready && !error) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.message}>Initializing database...</Text>
-      </View>
-    );
-  }
+  const listDirectory = () => {
+    try {
+      const dir = new Directory(Paths.document);
+      const items = dir.list();
 
-  // Show an error instead of allowing navigation to a broken database.
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.error}>{error}</Text>
-      </View>
-    );
-  }
+      addLog(`✅ Found ${items.length} items:`);
+    } catch (error) {}
+  };
+
+  const uploadFile = async () => {
+    setLoading(true);
+    try {
+      const file = new File(Paths.cache, "upload.txt");
+      file.create();
+      file.write("Upload this content");
+
+      const formData = new FormData();
+
+      formData.append("file", file);
+
+      const response = await fetch("https://httpbin.org/post", {
+        method: "POST",
+        body: formData,
+      });
+
+      addLog(`✅ Uploaded! Status: ${response.status}`);
+    } catch (error) {
+      addLog(`❌ Error: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>SQLite User Manager</Text>
+      <Text style={styles.header}>📦 FileSystem Operations</Text>
 
-      <Text style={styles.subtitle}>
-        Manage users stored locally on your device.
-      </Text>
+      <ScrollView style={styles.buttonsContainer}>
+        <View style={styles.row}>
+          <Button title="1. Create & Read" onPress={createAndReadFile} />
+          <Button title="2. Base64" onPress={readAsBase64} />
+        </View>
 
-      <Link href="/users-list" style={styles.link}>
-        View Users
-      </Link>
+        <View style={styles.row}>
+          <Button title="3. List Dir" onPress={listDirectory} />
+          <Button title="4. Upload" onPress={uploadFile} />
+        </View>
+      </ScrollView>
+
+      <View style={styles.logsContainer}>
+        <Text style={styles.logsHeader}>📋 Operation Logs:</Text>
+        <ScrollView style={styles.logsScroll}>
+          {logs.map((log, index) => (
+            <Text key={index} style={styles.logText}>
+              {log}
+            </Text>
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
-}
+};
+
+export default Index;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    padding: 20,
+    backgroundColor: "#fff",
+    paddingTop: 50,
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  buttonsContainer: {
+    maxHeight: 400,
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    gap: 10,
+  },
+  loadingContainer: {
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    padding: 10,
   },
-
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 8,
+  logsContainer: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
   },
-
-  subtitle: {
-    fontSize: 15,
-    color: "#64748B",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-
-  message: {
-    marginTop: 12,
-    fontSize: 15,
-    color: "#475569",
-  },
-
-  link: {
-    backgroundColor: "#2563EB",
-    color: "#FFFFFF",
-    overflow: "hidden",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 10,
-    fontWeight: "600",
-  },
-
-  error: {
-    color: "#DC2626",
+  logsHeader: {
+    fontWeight: "bold",
     fontSize: 16,
+    marginBottom: 10,
+  },
+  logsScroll: {
+    flex: 1,
+  },
+  logText: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontFamily: "monospace",
+  },
+  emptyLog: {
+    fontSize: 14,
+    color: "#999",
     textAlign: "center",
+    marginTop: 20,
   },
 });
